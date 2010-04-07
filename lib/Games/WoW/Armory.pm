@@ -341,7 +341,7 @@ sub get_arena_teams {
     # than one team.  The following logic tries to figure this out:
     my @teams = ( exists $$arena_team{name} ) 
               ? ( $arena_team )
-              : map { $$arena_team{$_} } keys %{$arena_team};
+              : map +{ %{$arena_team->{$_}}, name=>$_ }, (keys %{$arena_team});
 
     my @team_objs;
     foreach my $team ( @teams ){
@@ -359,6 +359,9 @@ sub get_arena_teams {
         my @members;
 
         my $members = $$team{members}{character};
+
+        if (defined $members->{name} ) { my %hash = %$members ; delete $hash{name}; $members = { $members->{name} => \%hash } };
+
         foreach my $member (keys %{$members}){
             my $m = Games::WoW::Armory::Character->new;
             $m->name($member);
@@ -397,13 +400,13 @@ sub search_guild {
     );
 
     $self->guild( Games::WoW::Armory::Guild->new );
-    my $guild = $self->{ data }{ guildInfo }{ guild };
+    my $guild = $self->{ data }{ guildInfo };
     my $members
         = $self->{ data }{ guildInfo }{ guild }{ members }{ character };
 
-    $self->guild->name( $$guild{ name } );
-    $self->guild->battleGroup( $$guild{ battleGroup } );
-    $self->guild->realm( $$guild{ realm } );
+    $self->guild->name( $$guild{ guildHeader }{ name } );
+    $self->guild->battleGroup( $$guild{ guildHeader }{ battleGroup } );
+    $self->guild->realm( $$guild{ guildHeader }{ realm } );
 
     my @members;
     foreach my $member ( keys %{ $members } ) {
