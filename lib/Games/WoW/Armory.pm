@@ -12,7 +12,7 @@ __PACKAGE__->mk_accessors(
     qw(character url team guild)
 );
 
-our $VERSION = '0.0.7';
+our $VERSION = '0.0.8';
 
 =head1 NAME
 
