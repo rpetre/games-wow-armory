@@ -12,7 +12,7 @@ __PACKAGE__->mk_accessors(
     qw(character url team guild)
 );
 
-our $VERSION = '0.0.8';
+our $VERSION = '0.0.7_1';
 
 =head1 NAME
 
@@ -445,6 +445,7 @@ sub search_team {
     my $arena_team = $self->{ data }{ teamInfo }{ arenaTeam };
     my $members
         = $self->{ data }{ teamInfo }{ arenaTeam }{ members }{ character };
+    if (defined $members->{name} ) { my %hash = %$members ; delete $hash{name}; $members = { $members->{name} => \%hash } };
 
     $self->team( Games::WoW::Armory::Team->new() );
     $self->team->seasonGamesPlayed( $$arena_team{ seasonGamesPlayed } );
