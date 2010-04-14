@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 use strict;
-use Test::More tests => 16;
+use Test::More tests => 12;
 use Games::WoW::Armory;
 use Data::Dumper;
 
@@ -9,6 +9,9 @@ use_ok('Games::WoW::Armory');
 can_ok('Games::WoW::Armory', 'fetch_data');
 can_ok('Games::WoW::Armory', 'search_character');
 can_ok('Games::WoW::Armory', 'search_guild');
+
+# warning: these tests depend on players that may move from one guild to another, or change servers, or names, and so on.
+# failure to pass tests might simply mean stale data
 
 my $char = Games::WoW::Armory->new();
 $char->search_character({realm => "Elune", character => "Astelian", country => "EU"});
@@ -23,10 +26,3 @@ $guild->search_guild({realm => "Elune", guild => "Cercle+De+L+Anneau+Rond", coun
 is ($guild->guild->name, "Cercle De L Anneau Rond", "Guild name");
 is ($guild->guild->realm, "Elune", "Realm name");
 is ($guild->guild->battleGroup, "Cataclysme / Cataclysm", "Battlegroup name");
-
-my $arena = Games::WoW::Armory->new();
-$arena->search_team({team => 'Ne me kitte pas', ts => 2, country => 'EU', realm => 'Elune'});
-is ($arena->team->name, 'Ne me kitte pas', 'Team name');
-is ($arena->team->size, 2, 'Team Size');
-is ($arena->team->battleGroup, 'Cataclysme / Cataclysm', 'Battlegroup name');
-is ($arena->team->realm, 'Elune', 'Realm name');
