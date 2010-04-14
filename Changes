@@ -1,5 +1,11 @@
 Revision history for Games-WoW-Armory
 
+0.0.7_1 Wed Apr 14 22:17:10 EEST 2010
+    - fixed tests with valid data
+    - handled several cases where single-item lists were collapsed by
+      XML::Simple (probably there's a smarter way)
+    - adjusted XML parsing to current version of Armory
+
 0.0.7 Jeu 27 sep 12:56:29 2007  
     - big update by Andrew Yochum (fix realm, new tests, ...)
 
