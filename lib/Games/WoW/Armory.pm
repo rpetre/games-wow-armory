@@ -8,11 +8,9 @@ use LWP::UserAgent;
 use XML::Simple;
 use Data::Dumper;
 
-__PACKAGE__->mk_accessors(
-    qw(character url team guild)
-);
+__PACKAGE__->mk_accessors(qw(character url team guild));
 
-our $VERSION = '0.0.7_1';
+our $VERSION = '0.0.8';
 
 =head1 NAME
 
@@ -206,42 +204,56 @@ our $HEROIC_REPUTATIONS = {
 
 sub fetch_data {
     my ( $self, $params ) = @_;
-    $self->{ ua } = LWP::UserAgent->new() || croak $!;
-    $self->{ ua }->agent(
+    if ( defined $self->{local_files} && !defined $self->{dump_xml} ) {
+        $self->{xp} = XML::Simple->new;
+        $self->{data}
+            = $self->{xp}->XMLin( $self->{local_files}->{ $$params{xml} } );
+        return;
+    }
+    $self->{ua} = LWP::UserAgent->new() || croak $!;
+    $self->{ua}->agent(
         "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.1) Gecko/20061204 Firefox/2.0.0.1"
     );
 
     my $base_url;
-    if ( $$params{ country } =~ /eu/i ) {
+    if ( $$params{country} =~ /eu/i ) {
         $base_url = $WOW_EUROPE;
     }
-    elsif ( $$params{ country } =~ /us/i ) {
+    elsif ( $$params{country} =~ /us/i ) {
         $base_url = $WOW_US;
     }
     else {
         croak "Unknow region code, please choose US or EU";
     }
 
-    if ( defined $$params{ team } ) {
+    if ( defined $$params{team} ) {
         $self->url( $base_url
-                . $$params{ xml } . "?r="
-                . $$params{ realm } . "&ts="
-                . $$params{ ts } . "&t="
-                . $$params{ team } );
+                . $$params{xml} . "?r="
+                . $$params{realm} . "&ts="
+                . $$params{ts} . "&t="
+                . $$params{team} );
 
     }
     else {
         $self->url( $base_url
-                . $$params{ xml } . "?r="
-                . $$params{ realm } . "&n="
-                . $$params{ name } );
+                . $$params{xml} . "?r="
+                . $$params{realm} . "&n="
+                . $$params{name} );
 
     }
 
-    $self->{ resultat } = $self->{ ua }->get( $self->url );
+    $self->{resultat} = $self->{ua}->get( $self->url );
 
-    $self->{ xp }   = XML::Simple->new;
-    $self->{ data } = $self->{ xp }->XMLin( $self->{ resultat }->content );
+    if ( defined $self->{dump_xml} ) {
+
+        # this would probably require some extra checking
+        open my $fh, ">", $self->{local_files}->{ $$params{xml} };
+        print $fh $self->{resultat}->content;
+        close $fh;
+    }
+
+    $self->{xp}   = XML::Simple->new;
+    $self->{data} = $self->{xp}->XMLin( $self->{resultat}->content );
 }
 
 sub search_character {
@@ -250,44 +262,44 @@ sub search_character {
     my $xml = 'character-sheet.xml';
 
     croak "you need to specify a character name"
-        unless defined $$params{ character };
-    croak "you need to specify a realm" unless defined $$params{ realm };
+        unless defined $$params{character};
+    croak "you need to specify a realm" unless defined $$params{realm};
     croak "you need to specify a country name"
-        unless defined $$params{ country };
+        unless defined $$params{country};
 
     $self->fetch_data(
         {   xml     => $xml,
-            realm   => $$params{ realm },
-            name    => $$params{ character },
-            country => $$params{ country }
+            realm   => $$params{realm},
+            name    => $$params{character},
+            country => $$params{country}
         }
     );
-    
-    my $character     = $self->{ data }{ characterInfo }{ character };
-    my $skill         = $self->{ data }{ characterInfo }{ skillTab };
-    my $characterinfo = $self->{ data }{ characterInfo }{ characterTab };
-    
+
+    my $character     = $self->{data}{characterInfo}{character};
+    my $skill         = $self->{data}{characterInfo}{skillTab};
+    my $characterinfo = $self->{data}{characterInfo}{characterTab};
+
     $self->character( Games::WoW::Armory::Character->new );
-    $self->character->name( $$character{ name } );
-    $self->character->class( $$character{ class } );
-    $self->character->guildName( $$character{ guildName } );
+    $self->character->name( $$character{name} );
+    $self->character->class( $$character{class} );
+    $self->character->guildName( $$character{guildName} );
 
-    $self->character->battleGroup( $$character{ battleGroup } );
-    $self->character->realm( $$character{ realm } );
-    $self->character->race( $$character{ race } );
-    $self->character->gender( $$character{ gender } );
-    $self->character->faction( $$character{ faction } );
-    $self->character->level( $$character{ level } );
-    $self->character->lastModified( $$character{ lastModified } );
-    $self->character->title( $$character{ title } );
+    $self->character->battleGroup( $$character{battleGroup} );
+    $self->character->realm( $$character{realm} );
+    $self->character->race( $$character{race} );
+    $self->character->gender( $$character{gender} );
+    $self->character->faction( $$character{faction} );
+    $self->character->level( $$character{level} );
+    $self->character->lastModified( $$character{lastModified} );
+    $self->character->title( $$character{title} );
 
-    $self->character->skill( $skill );
-    $self->character->characterinfo( $characterinfo );
-    
+    $self->character->skill($skill);
+    $self->character->characterinfo($characterinfo);
+
     # Reputation information requires a separate XML file.
-    $self->get_reputation( $params );
+    $self->get_reputation($params);
 
-    $self->get_arena_teams( $params );
+    $self->get_arena_teams($params);
 }
 
 sub get_reputation {
@@ -296,21 +308,21 @@ sub get_reputation {
     my $xml = 'character-reputation.xml';
 
     croak "you need to specify a character name"
-        unless defined $$params{ character };
-    croak "you need to specify a realm" unless defined $$params{ realm };
+        unless defined $$params{character};
+    croak "you need to specify a realm" unless defined $$params{realm};
     croak "you need to specify a country name"
-        unless defined $$params{ country };
+        unless defined $$params{country};
 
     $self->fetch_data(
         {   xml     => $xml,
-            realm   => $$params{ realm },
-            name    => $$params{ character },
-            country => $$params{ country }
+            realm   => $$params{realm},
+            name    => $$params{character},
+            country => $$params{country}
         }
     );
 
-    my $reputation = $self->{ data }{ characterInfo }{ reputationTab };
-    $self->character->reputation( $reputation );
+    my $reputation = $self->{data}{characterInfo}{reputationTab};
+    $self->character->reputation($reputation);
     $self->get_heroic_access;
 }
 
@@ -320,62 +332,68 @@ sub get_arena_teams {
     my $xml = 'character-arenateams.xml';
 
     croak "you need to specify a character name"
-        unless defined $$params{ character };
-    croak "you need to specify a realm" unless defined $$params{ realm };
+        unless defined $$params{character};
+    croak "you need to specify a realm" unless defined $$params{realm};
     croak "you need to specify a country name"
-        unless defined $$params{ country };
+        unless defined $$params{country};
 
     $self->fetch_data(
         {   xml     => $xml,
-            realm   => $$params{ realm },
-            name    => $$params{ character },
-            country => $$params{ country }
+            realm   => $$params{realm},
+            name    => $$params{character},
+            country => $$params{country}
         }
     );
 
-    my $arena_team 
+    my $arena_team
         = $self->{data}{characterInfo}{character}{arenaTeams}{arenaTeam};
 
     # XML::Simple will not divide team information up into keys
     # (based on team name) unless the character is a member of more
     # than one team.  The following logic tries to figure this out:
-    my @teams = ( exists $$arena_team{name} ) 
-              ? ( $arena_team )
-              : map +{ %{$arena_team->{$_}}, name=>$_ }, (keys %{$arena_team});
+    my @teams
+        = ( exists $$arena_team{name} )
+        ? ($arena_team)
+        : map +{ %{ $arena_team->{$_} }, name => $_ },
+        ( keys %{$arena_team} );
 
     my @team_objs;
-    foreach my $team ( @teams ){
+    foreach my $team (@teams) {
         my $t = Games::WoW::Armory::Team->new;
-        $t->name($$team{name});
-        $t->seasonGamesPlayed($$team{seasonGamesPlayed});
-        $t->size($$team{size});
-        $t->rating($$team{rating});
-        $t->battleGroup($$team{battleGroup});
-        $t->realm($$team{realm});
-        $t->lastSeasonRanking($$team{lastSeasonRanking});
-        $t->factionId($$team{factionId});
-        $t->ranking($$team{ranking});
-        $t->seasonGamesWon($$team{seasonGamesWon});
+        $t->name( $$team{name} );
+        $t->seasonGamesPlayed( $$team{seasonGamesPlayed} );
+        $t->size( $$team{size} );
+        $t->rating( $$team{rating} );
+        $t->battleGroup( $$team{battleGroup} );
+        $t->realm( $$team{realm} );
+        $t->lastSeasonRanking( $$team{lastSeasonRanking} );
+        $t->factionId( $$team{factionId} );
+        $t->ranking( $$team{ranking} );
+        $t->seasonGamesWon( $$team{seasonGamesWon} );
         my @members;
 
         my $members = $$team{members}{character};
 
-        if (defined $members->{name} ) { my %hash = %$members ; delete $hash{name}; $members = { $members->{name} => \%hash } };
+        if ( defined $members->{name} ) {
+            my %hash = %$members;
+            delete $hash{name};
+            $members = { $members->{name} => \%hash };
+        }
 
-        foreach my $member (keys %{$members}){
+        foreach my $member ( keys %{$members} ) {
             my $m = Games::WoW::Armory::Character->new;
             $m->name($member);
-            $m->race($$members{$member}{race});
-            $m->seasonGamesPlayed($$members{$member}{seasonGamesPlayed});
-            $m->teamRank($$members{$member}{teamRank});
-            $m->race($$members{$member}{race});
-            $m->gender($$members{$member}{gender});
-            $m->seasonGamesWon($$members{$member}{seasonGamesWon});
-            $m->guildName($$members{$member}{guild});
-            $m->class($$members{$member}{class});
+            $m->race( $$members{$member}{race} );
+            $m->seasonGamesPlayed( $$members{$member}{seasonGamesPlayed} );
+            $m->teamRank( $$members{$member}{teamRank} );
+            $m->race( $$members{$member}{race} );
+            $m->gender( $$members{$member}{gender} );
+            $m->seasonGamesWon( $$members{$member}{seasonGamesWon} );
+            $m->guildName( $$members{$member}{guild} );
+            $m->class( $$members{$member}{class} );
             push @members, $m;
         }
-        $t->members(\@members);
+        $t->members( \@members );
         push @team_objs, $t;
     }
     $self->character->arenaTeams( \@team_objs );
@@ -386,37 +404,36 @@ sub search_guild {
 
     my $xml = "guild-info.xml";
 
-    croak "you need to specify a guild name" unless defined $$params{ guild };
-    croak "you need to specify a realm"      unless defined $$params{ realm };
+    croak "you need to specify a guild name" unless defined $$params{guild};
+    croak "you need to specify a realm"      unless defined $$params{realm};
     croak "you need to specify a country name"
-        unless defined $$params{ country };
+        unless defined $$params{country};
 
     $self->fetch_data(
         {   xml     => $xml,
-            realm   => $$params{ realm },
-            name    => $$params{ guild },
-            country => $$params{ country }
+            realm   => $$params{realm},
+            name    => $$params{guild},
+            country => $$params{country}
         }
     );
 
     $self->guild( Games::WoW::Armory::Guild->new );
-    my $guild = $self->{ data }{ guildInfo };
-    my $members
-        = $self->{ data }{ guildInfo }{ guild }{ members }{ character };
+    my $guild   = $self->{data}{guildInfo};
+    my $members = $self->{data}{guildInfo}{guild}{members}{character};
 
-    $self->guild->name( $$guild{ guildHeader }{ name } );
-    $self->guild->battleGroup( $$guild{ guildHeader }{ battleGroup } );
-    $self->guild->realm( $$guild{ guildHeader }{ realm } );
+    $self->guild->name( $$guild{guildHeader}{name} );
+    $self->guild->battleGroup( $$guild{guildHeader}{battleGroup} );
+    $self->guild->realm( $$guild{guildHeader}{realm} );
 
     my @members;
-    foreach my $member ( keys %{ $members } ) {
+    foreach my $member ( keys %{$members} ) {
         my $m = Games::WoW::Armory::Character->new;
-        $m->name( $member );
-        $m->level( $$members{ $member }{ level } );
-        $m->race( $$members{ $member }{ race } );
-        $m->class( $$members{ $member }{ class } );
-        $m->rank( $$members{ $member }{ rank } );
-        $m->gender( $$members{ $member }{ gender } );
+        $m->name($member);
+        $m->level( $$members{$member}{level} );
+        $m->race( $$members{$member}{race} );
+        $m->class( $$members{$member}{class} );
+        $m->rank( $$members{$member}{rank} );
+        $m->gender( $$members{$member}{gender} );
         push @members, $m;
     }
     $self->guild->members( \@members );
@@ -426,50 +443,53 @@ sub search_team {
     my ( $self, $params ) = @_;
 
     my $xml = "team-info.xml";
-    croak "you need to specify a team name" unless defined $$params{ team };
+    croak "you need to specify a team name" unless defined $$params{team};
     croak "you need to specify a country name"
-        unless defined $$params{ country };
-    croak "you need to specify a team style" unless defined $$params{ ts };
+        unless defined $$params{country};
+    croak "you need to specify a team style" unless defined $$params{ts};
     croak "you need to specify a realm name"
-        unless defined $$params{ realm };
+        unless defined $$params{realm};
 
     $self->fetch_data(
         {   xml     => $xml,
-            team    => $$params{ team },
-            realm   => $$params{ realm },
-            ts      => $$params{ ts },
-            country => $$params{ country }
+            team    => $$params{team},
+            realm   => $$params{realm},
+            ts      => $$params{ts},
+            country => $$params{country}
         }
     );
 
-    my $arena_team = $self->{ data }{ teamInfo }{ arenaTeam };
-    my $members
-        = $self->{ data }{ teamInfo }{ arenaTeam }{ members }{ character };
-    if (defined $members->{name} ) { my %hash = %$members ; delete $hash{name}; $members = { $members->{name} => \%hash } };
+    my $arena_team = $self->{data}{teamInfo}{arenaTeam};
+    my $members    = $self->{data}{teamInfo}{arenaTeam}{members}{character};
+    if ( defined $members->{name} ) {
+        my %hash = %$members;
+        delete $hash{name};
+        $members = { $members->{name} => \%hash };
+    }
 
     $self->team( Games::WoW::Armory::Team->new() );
-    $self->team->seasonGamesPlayed( $$arena_team{ seasonGamesPlayed } );
-    $self->team->rating( $$arena_team{ rating } );
-    $self->team->size( $$arena_team{ size } );
-    $self->team->battleGroup( $$arena_team{ battleGroup } );
-    $self->team->realm( $$arena_team{ realm } );
-    $self->team->lastSeasonRanking( $$arena_team{ lastSeasonRanking } );
-    $self->team->factionId( $$arena_team{ factionId } );
-    $self->team->ranking( $$arena_team{ ranking } );
-    $self->team->name( $$arena_team{ name } );
-    $self->team->relevance( $$arena_team{ relevance } );
-    $self->team->seasonGamesWon( $$arena_team{ seasonGamesWon } );
+    $self->team->seasonGamesPlayed( $$arena_team{seasonGamesPlayed} );
+    $self->team->rating( $$arena_team{rating} );
+    $self->team->size( $$arena_team{size} );
+    $self->team->battleGroup( $$arena_team{battleGroup} );
+    $self->team->realm( $$arena_team{realm} );
+    $self->team->lastSeasonRanking( $$arena_team{lastSeasonRanking} );
+    $self->team->factionId( $$arena_team{factionId} );
+    $self->team->ranking( $$arena_team{ranking} );
+    $self->team->name( $$arena_team{name} );
+    $self->team->relevance( $$arena_team{relevance} );
+    $self->team->seasonGamesWon( $$arena_team{seasonGamesWon} );
 
     my @members;
-    foreach my $member ( keys %{ $members } ) {
+    foreach my $member ( keys %{$members} ) {
         my $m = Games::WoW::Armory::Character->new;
-        $m->name( $member );
-        $m->class( $$members{ $member }{ class } );
-        $m->realm( $$members{ $member }{ realm } );
-        $m->battleGroup( $$members{ $member }{ battleGroup } );
-        $m->race( $$members{ $member }{ race } );
-        $m->gender( $$members{ $member }{ gender } );
-        $m->guildName( $$members{ $member }{ guild } );
+        $m->name($member);
+        $m->class( $$members{$member}{class} );
+        $m->realm( $$members{$member}{realm} );
+        $m->battleGroup( $$members{$member}{battleGroup} );
+        $m->race( $$members{$member}{race} );
+        $m->gender( $$members{$member}{gender} );
+        $m->guildName( $$members{$member}{guild} );
         push @members, $m;
     }
     $self->team->members( \@members );
@@ -480,16 +500,17 @@ sub get_heroic_access {
 
     my @heroic_array;
     foreach my $rep ( keys %{ $self->character->reputation } ) {
-        foreach my $fac ( keys %{ $self->character->reputation->{ $rep } } ) {
+        foreach my $fac ( keys %{ $self->character->reputation->{$rep} } ) {
             foreach my $city (
-                keys %{ $self->character->reputation->{ $rep }{ $fac }{ 'faction' } } )
+                keys
+                %{ $self->character->reputation->{$rep}{$fac}{'faction'} } )
             {
-                foreach my $r ( keys %{ $HEROIC_REPUTATIONS } ) {
+                foreach my $r ( keys %{$HEROIC_REPUTATIONS} ) {
                     if (   $r eq $city
-                        && $self->character->reputation->{ $rep }{ $fac }{ 'faction' }
-                        { $city }{ 'reputation' } >= 21000 )
+                        && $self->character->reputation->{$rep}{$fac}
+                        {'faction'}{$city}{'reputation'} >= 21000 )
                     {
-                        push @heroic_array, $$HEROIC_REPUTATIONS{ $r };
+                        push @heroic_array, $$HEROIC_REPUTATIONS{$r};
                     }
                 }
             }
@@ -534,7 +555,7 @@ package Games::WoW::Armory::Guild;
 
 use base qw(Class::Accessor::Fast);
 
-__PACKAGE__->mk_accessors( qw(realm name battleGroup members) );
+__PACKAGE__->mk_accessors(qw(realm name battleGroup members));
 
 1;
 
